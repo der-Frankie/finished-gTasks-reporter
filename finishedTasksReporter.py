@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from __future__ import print_function
 import httplib2
 import os
@@ -15,11 +17,9 @@ try:
 except ImportError:
     flags = None
 
-# If modifying these scopes, delete your previously saved credentials
-# at ~/.credentials/tasks-python-quickstart.json
 SCOPES = 'https://www.googleapis.com/auth/tasks.readonly'
 CLIENT_SECRET_FILE = 'client_secret.json'
-APPLICATION_NAME = 'Google Tasks API Python Quickstart'
+APPLICATION_NAME = 'Weekly Report for finished Google Tasks'
 
 
 def get_credentials():
@@ -35,8 +35,7 @@ def get_credentials():
     credential_dir = os.path.join(home_dir, '.credentials')
     if not os.path.exists(credential_dir):
         os.makedirs(credential_dir)
-    credential_path = os.path.join(credential_dir,
-                                   'tasks-python-quickstart.json')
+    credential_path = os.path.join(credential_dir, CLIENT_SECRET_FILE)
     store = Storage(credential_path)
     credentials = store.get()
     if not credentials or credentials.invalid:
@@ -50,45 +49,58 @@ def get_credentials():
     return credentials
 
 def main():
-    """Shows basic usage of the Google Tasks API.
-
-    Creates a Google Tasks API service object and outputs the first 10
-    task lists.
+    """Requests via the Google Tasks API the available task lists (max. 10)
+    and iterates over them to determine the finished tasks during the
+    last 7 days and reporting them as console output.
     """
+
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     taskService = discovery.build('tasks', 'v1', http=http)
 
+    numberOfDays = 7
     today = datetime.today()
-    sevenDaysAgo = today.replace(day=today.day - 7)
+    sevenDaysAgo = today.replace(day = today.day - numberOfDays)
+    overallTasks = 0
 
     results = taskService.tasklists().list(maxResults=10).execute()
-    tasklists = results.get('items', [])
-    if not tasklists:
+    taskLists = results.get('items', [])
+    if not taskLists:
         print('No task lists found.')
     else:
         print()
-        taskList =  taskService.tasklists().get(tasklist='MDUwNjMxMTAzMzk3NDE2MjYzNTg6MDow').execute()
-        print('Task list: ' + taskList['title'])
-
-        tasks_allg = taskService.tasks().list(tasklist='MDUwNjMxMTAzMzk3NDE2MjYzNTg6MDow',
-                showCompleted='true').execute()
-        anzahl = 0
-        tasks_allg_items =  tasks_allg['items']
-        for task in tasks_allg_items:
-            if task['status'] == 'completed':
-                completedDateTime = datetime.strptime(task['completed'], '%Y-%m-%dT%H:%M:%S.%fZ')
-                '''print ('    {0}'.format(completedDateTime)'''
-
-                if (completedDateTime > sevenDaysAgo):
-                    print ('Task:' + task['title'])
-                    print ('    {0}'.format(task['completed']))
-                    print ()
-                    anzahl += 1
-
-        print(' Es wurden {0} Tasks gefunden.'.format(anzahl))
-        print(' Datum 7 Tage zurück lautet {0}.'.format(sevenDaysAgo))    
+        print('Übersicht abgeschlossener Tasks seit dem {0} (letzte {1} Tage):'
+                .format(sevenDaysAgo.date().strftime("%d.%m.%Y"), numberOfDays))    
         print()
+        
+        for taskList in taskLists:
+            currentListItems = 0
+
+            tasks_allg = taskService.tasks().list(tasklist=taskList['id'],
+                    showCompleted='true').execute()
+            tasks_allg_items =  tasks_allg['items']
+            for task in tasks_allg_items:
+                if task['status'] == 'completed':
+                    completedDateTime = datetime.strptime(task['completed'],
+                            '%Y-%m-%dT%H:%M:%S.%fZ')
+
+                    '''print ('    {0}'.format(completedDateTime)'''
+
+                    if (completedDateTime > sevenDaysAgo):
+                        print ('+  "{0}" (Liste: "{1}") wurde am {2} abgeschlossen.'
+                                .format(task['title'], taskList['title'], 
+                                    completedDateTime.date().strftime("%d.%m.%Y")))
+                        print ()
+                        currentListItems += 1
+
+            if currentListItems == 0:
+                print('-  Keine abgeschlossene Aufgabe auf der Liste "{0}".'
+                        .format(taskList['title']))            
+                print ()                
+            overallTasks += currentListItems
+
+    print('Es wurden {0} abgeschlossene Tasks gefunden.'.format(overallTasks))
+    print()
 
 if __name__ == '__main__':
     main()
