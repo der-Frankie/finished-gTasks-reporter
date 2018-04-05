@@ -40,3 +40,11 @@ optional arguments:
   --logging_level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
                         Set the logging level of detail.
 ```
+
+## TODO / IDEAs
+
+- [ ] what about the repeated tasks, if the task for one day is finished?
+- [ ] what about writing to a file? Is the a intuitive task/tasklist-structure?
+- [ ] check the code from https://github.com/unclecat0/google-task-cli for further inspirations
+- [ ] recheck the requirements: can I really explain what's going on there?!
+- [ ] tryout a small GUI
