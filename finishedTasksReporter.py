@@ -12,23 +12,21 @@ from oauth2client.file import Storage
 from datetime import datetime
 from datetime import timedelta
 
+
 try:
     import argparse
     parser = argparse.ArgumentParser(parents=[tools.argparser])
     parser.add_argument('integers', metavar='N', type=int, nargs='?', default=7,
                         help='Number of days for retrospected intervall')
-
     flags = parser.parse_args()
-
     numberOfDays = flags.integers
-    #print ('Eingabe: {0}'.format(numberOfDays))
-    
+
 except ImportError:
     flags = None
 
 SCOPES = 'https://www.googleapis.com/auth/tasks.readonly'
 CLIENT_SECRET_FILE = 'client_secret.json'
-APPLICATION_NAME = 'Weekly Report for finished Google Tasks'
+APPLICATION_NAME = 'Report for finished Google Tasks'
 
 
 def get_credentials():
@@ -58,68 +56,95 @@ def get_credentials():
     return credentials
 
 
-def outputToConsole(finishedTasksDict, dateString):    
-    taskCounter = 0
-
-    # checken, ob len(finishedTasksDict > 0)
-    if not finishedTasksDict:
+def outputToConsole(finishedTasksAsList, deadlineDate):    
+    """Reporting the finished tasks as console output
+    """
+    if not finishedTasksAsList:
         print('No finished tasks were found.')
     else:
         print()
+        dateString = deadlineDate.date().strftime("%d.%m.%Y")
         print('Übersicht abgeschlossener Tasks in den letzten {0} Tagen (seit dem {1}):'
                 .format(numberOfDays, dateString))    
         print()
      
         '''Iteration über die Aufgaben'''
-        for task in finishedTasksDict.values():
-            print ('"{0}" (Liste: "{1}") wurde am {2} abgeschlossen.'
-                .format(task[0], task[1], task[2]))            
-            taskCounter += 1
-        print('Es wurden {0} abgeschlossene Tasks gefunden.'.format(taskCounter))
+        for currentTask in finishedTasksAsList:
+            completedDateTime = getCompletionDateTime(currentTask)
+            print ('"{0}" wurde am {1} abgeschlossen.'.format(currentTask['title'], 
+                completedDateTime.date().strftime("%d.%m.%Y")))
+        print('Es wurden {0} abgeschlossene Tasks gefunden.'.format(len(finishedTasksAsList)))
         print()
 
 
-def determineFinishedTasks(taskService):
-    """Requests via the Google Tasks API the available task lists 
-    (limited through the value of 'maxNumberOfTaskLists')
-    and iterates over them to determine the finished tasks during the
-    last days (given as parameter!) and reporting them as console output.
+def getCompletionDateTime(task):
+    """Determine a dateTime-Object from a given String
     """
-    maxNumberOfTaskLists = 10
-    today = datetime.today()
-    dateSomeDaysAgo = today - timedelta(days=numberOfDays)
+    completedDateTime = datetime.strptime(task['completed'], '%Y-%m-%dT%H:%M:%S.%fZ')
+    return completedDateTime
 
-    results = taskService.tasklists().list(maxResults=maxNumberOfTaskLists).execute()
+
+def getDeadlineDate():
+    today = datetime.today()
+    deadlineDate = today - timedelta(days=numberOfDays)
+    return deadlineDate
+
+
+def filterFinishedTasks(tasks_dict, deadlineDate):
+    """Iterates over the tasklists in the dict to filter out the finished tasks
+    during the last days (given as parameter!).
+    """
+    finished_tasks = []
+    counter = 0
+
+    if not tasks_dict:
+        skip
+        print('No task lists found.')
+
+    else: 
+        for taskList in tasks_dict.values():
+            for currentTask in taskList:
+                if currentTask['status'] == 'completed':
+                    completedDateTime = getCompletionDateTime(currentTask)
+                    if (completedDateTime > deadlineDate):
+                        finished_tasks.append(currentTask)
+    return finished_tasks
+
+
+def determineAllTasks(taskService):
+    """Requests through the Google Tasks API the available task lists, 
+    iterates over them to determine all the tasks and returns all as a dictionary
+    """
+    dict_of_tasklists = {}
+    results = taskService.tasklists().list().execute()
     taskLists = results.get('items', [])
     
     if not taskLists:
         skip
-        #print('No task lists found.')
+        print('No task lists found.')
     else:
-        tasks = {}
-        dateString = dateSomeDaysAgo.date().strftime("%d.%m.%Y")
+        number_of_tasks = 0
         
         for taskList in taskLists:
             currentTaskList = taskService.tasks().list(tasklist=taskList['id'],
                     showCompleted='true').execute()
-            currentTaskList_items =  currentTaskList['items']
-            for task in currentTaskList_items:
-                if task['status'] == 'completed':
-                    completedDateTime = datetime.strptime(task['completed'],
-                            '%Y-%m-%dT%H:%M:%S.%fZ')
-                    if (completedDateTime > dateSomeDaysAgo):
-                        task = {task['id'] : (task['title'], taskList['title'], 
-                                    completedDateTime.date().strftime("%d.%m.%Y"))}
-                        tasks.update(task)
-    
-    outputToConsole(tasks, dateString)
+            dict_of_tasklists[taskList['id']] =  currentTaskList['items']
+            number_of_tasks += len(currentTaskList['items'])
 
+        print('Es wurden insgesamt {0} Aufgaben in {1} Listen gefunden.'
+                .format(number_of_tasks, len(dict_of_tasklists)))
+        return dict_of_tasklists
+    
 
 def main():
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     taskService = discovery.build('tasks', 'v1', http=http)
-    determineFinishedTasks(taskService)
+    dictTasklists = determineAllTasks(taskService)
+    deadlineDate = getDeadlineDate()    
+    finishedTasks = filterFinishedTasks(dictTasklists, deadlineDate)
+    outputToConsole(finishedTasks, deadlineDate)
+    #outputToFile(dictTasklists)
 
 
 if __name__ == '__main__':
