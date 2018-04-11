@@ -51,9 +51,6 @@ def get_credentials():
         flow.user_agent = APPLICATION_NAME
         if flags:
             credentials = tools.run_flow(flow, store, flags)
-        else: # Needed only for compatibility with Python 2.6
-            credentials = tools.run(flow, store)
-        #print('Storing credentials to ' + credential_path)
     return credentials
 
 
@@ -67,9 +64,6 @@ def outputToConsole(finishedTasksAsList, deadlineDate):
         dateString = deadlineDate.date().strftime("%d.%m.%Y")
         print('Übersicht abgeschlossener Tasks in den letzten {0} Tagen (seit dem {1}):'
                 .format(numberOfDays, dateString))
-        print()
-
-        '''Iteration über die Aufgaben'''
         for currentTask in finishedTasksAsList:
             completedDateTime = getCompletionDateTime(currentTask)
             print ('"{0}" wurde am {1} abgeschlossen.'.format(currentTask['title'],
@@ -85,11 +79,14 @@ def outputToJson(finishedTasksAsList):
         print('No taskslists were found so none were written.')
     else:
         ts_now = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        filename = 'myTasks_{0}.json'.format(ts_now)
-        with open(filename, "w") as file:
+        with open('myTasks_{0}.json'.format(ts_now), "w") as file:
             json.dump(finishedTasksAsList, file, indent=4 * ' ')
         file.close()
+        print('All found tasks written to: {0}'.format(file.name))
 
+
+        print('Es wurden {0} abgeschlossene Tasks gefunden.'.format(len(finishedTasksAsList)))
+        
 
 def getCompletionDateTime(task):
     """Determine a dateTime-Object from a given String
@@ -109,10 +106,8 @@ def filterFinishedTasks(tasks_dict, deadlineDate):
     during the last days (given as parameter!).
     """
     finished_tasks = []
-    counter = 0
 
     if not tasks_dict:
-        skip
         print('No task lists found.')
 
     else:
@@ -134,7 +129,6 @@ def determineAllTasks(taskService):
     taskLists = results.get('items', [])
 
     if not taskLists:
-        skip
         print('No task lists found.')
     else:
         number_of_tasks = 0
