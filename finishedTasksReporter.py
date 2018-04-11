@@ -3,6 +3,7 @@
 from __future__ import print_function
 import httplib2
 import os
+import json
 
 from apiclient import discovery
 from oauth2client import client
@@ -56,7 +57,7 @@ def get_credentials():
     return credentials
 
 
-def outputToConsole(finishedTasksAsList, deadlineDate):    
+def outputToConsole(finishedTasksAsList, deadlineDate):
     """Reporting the finished tasks as console output
     """
     if not finishedTasksAsList:
@@ -65,16 +66,29 @@ def outputToConsole(finishedTasksAsList, deadlineDate):
         print()
         dateString = deadlineDate.date().strftime("%d.%m.%Y")
         print('Übersicht abgeschlossener Tasks in den letzten {0} Tagen (seit dem {1}):'
-                .format(numberOfDays, dateString))    
+                .format(numberOfDays, dateString))
         print()
-     
+
         '''Iteration über die Aufgaben'''
         for currentTask in finishedTasksAsList:
             completedDateTime = getCompletionDateTime(currentTask)
-            print ('"{0}" wurde am {1} abgeschlossen.'.format(currentTask['title'], 
+            print ('"{0}" wurde am {1} abgeschlossen.'.format(currentTask['title'],
                 completedDateTime.date().strftime("%d.%m.%Y")))
         print('Es wurden {0} abgeschlossene Tasks gefunden.'.format(len(finishedTasksAsList)))
         print()
+
+
+def outputToJson(finishedTasksAsList):
+    """Writes all the content of the given dictionary to a JSON-file
+    """
+    if not finishedTasksAsList:
+        print('No taskslists were found so none were written.')
+    else:
+        ts_now = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        filename = 'myTasks_{0}.json'.format(ts_now)
+        with open(filename, "w") as file:
+            json.dump(finishedTasksAsList, file, indent=4 * ' ')
+        file.close()
 
 
 def getCompletionDateTime(task):
@@ -101,7 +115,7 @@ def filterFinishedTasks(tasks_dict, deadlineDate):
         skip
         print('No task lists found.')
 
-    else: 
+    else:
         for taskList in tasks_dict.values():
             for currentTask in taskList:
                 if currentTask['status'] == 'completed':
@@ -112,19 +126,19 @@ def filterFinishedTasks(tasks_dict, deadlineDate):
 
 
 def determineAllTasks(taskService):
-    """Requests through the Google Tasks API the available task lists, 
+    """Requests through the Google Tasks API the available task lists,
     iterates over them to determine all the tasks and returns all as a dictionary
     """
     dict_of_tasklists = {}
     results = taskService.tasklists().list().execute()
     taskLists = results.get('items', [])
-    
+
     if not taskLists:
         skip
         print('No task lists found.')
     else:
         number_of_tasks = 0
-        
+
         for taskList in taskLists:
             currentTaskList = taskService.tasks().list(tasklist=taskList['id'],
                     showCompleted='true').execute()
@@ -134,17 +148,17 @@ def determineAllTasks(taskService):
         print('Es wurden insgesamt {0} Aufgaben in {1} Listen gefunden.'
                 .format(number_of_tasks, len(dict_of_tasklists)))
         return dict_of_tasklists
-    
+
 
 def main():
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     taskService = discovery.build('tasks', 'v1', http=http)
     dictTasklists = determineAllTasks(taskService)
-    deadlineDate = getDeadlineDate()    
+    deadlineDate = getDeadlineDate()
     finishedTasks = filterFinishedTasks(dictTasklists, deadlineDate)
     outputToConsole(finishedTasks, deadlineDate)
-    #outputToFile(dictTasklists)
+    outputToJson(finishedTasks)
 
 
 if __name__ == '__main__':
